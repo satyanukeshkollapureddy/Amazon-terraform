@@ -1,0 +1,80 @@
+#!/bin/bash
+
+echo "====================================="
+echo "Updating System"
+echo "====================================="
+sudo dnf update -y
+
+echo "====================================="
+echo "Installing Java 17"
+echo "====================================="
+sudo dnf install java-17-amazon-corretto -y
+
+java -version
+
+echo "====================================="
+echo "Installing Jenkins"
+echo "====================================="
+sudo wget -O /etc/yum.repos.d/jenkins.repo \
+https://pkg.jenkins.io/redhat-stable/jenkins.repo
+
+sudo rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+
+sudo dnf install jenkins -y
+
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
+
+echo "====================================="
+echo "Installing Docker"
+echo "====================================="
+sudo dnf install docker -y
+
+sudo systemctl enable docker
+sudo systemctl start docker
+
+sudo usermod -aG docker ec2-user
+sudo usermod -aG docker jenkins
+
+echo "====================================="
+echo "Installing Docker Compose"
+echo "====================================="
+sudo curl -L \
+https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
+-o /usr/local/bin/docker-compose
+
+sudo chmod +x /usr/local/bin/docker-compose
+
+docker-compose --version
+
+echo "====================================="
+echo "Running SonarQube Container"
+echo "====================================="
+sudo docker run -d \
+--name sonarqube \
+-p 9000:9000 \
+--restart unless-stopped \
+sonarqube:lts-community
+
+echo "====================================="
+echo "Installing Trivy"
+echo "====================================="
+sudo rpm -ivh \
+https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.66.0_Linux-64bit.rpm
+
+echo "====================================="
+echo "Versions Installed"
+echo "====================================="
+java -version
+docker --version
+docker-compose --version
+trivy --version
+
+echo "====================================="
+echo "Jenkins Password"
+echo "====================================="
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+echo "====================================="
+echo "Installation Completed"
+echo "====================================="
