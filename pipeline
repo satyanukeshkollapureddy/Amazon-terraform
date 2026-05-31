@@ -1,0 +1,98 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        SONAR_TOKEN = credentials('sonar-token')
+    }
+
+    stages {
+
+        stage("clean Ws") {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('check-out code') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/satyanukeshkollapureddy/AMAZON-PROJECT-FE.git'
+            }
+        }
+
+        stage("sonar-analysis") {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectKey=amazon-project \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=http://localhost:9000 \
+                        -Dsonar.login=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+
+        stage("quality gates") {
+            steps {
+                script {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+
+        stage("dependency-check") {
+            steps {
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit',
+                    odcInstallation: 'DP-Check'
+
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+
+        stage("trivy scan") {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+
+        stage("docker build & push") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-id') {
+                        sh "docker build -t sandy315/amazon:latest ."
+                        sh "docker push sandy315/amazon:latest"
+                    }
+                }
+            }
+        }
+
+        stage("TRIVY image scan") {
+            steps {
+                sh "trivy image sandy315/amazon:latest > trivyimage.txt"
+            }
+        }
+
+        stage('Deploy to container') {
+            steps {
+                sh '''
+                    docker rm -f amazon || true
+                    docker run -d --name amazon -p 3000:3000 sandy315/amazon:latest
+                '''
+            }
+        }
+    }
+}
