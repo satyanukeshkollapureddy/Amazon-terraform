@@ -12,6 +12,7 @@ resource "aws_instance" "amazon" {
   tags = {
     Name = var.instance_name
   }
+ user_data    = templatefile("./install.sh", {})
 }
 
 resource "aws_security_group" "sg" {
